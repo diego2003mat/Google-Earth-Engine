@@ -1,0 +1,33 @@
+var f= require('users/dpacheco/modulos:funciones_globales.js');
+/* SCRIPT PREPARADO EL 9 DE JUNIO DEL 2020
+MOSAICO Y VALOR MEDIO DE IMAGENES SENTINEL 1 DEL PARQUE NACIONAL CAJAS PNC DE UN ANIO PARA TRATAR DE REDUCIR EL EFECTO 
+DE LA TOPOGRAFIA EN LOS DATOS RADAR USANDO UNA SERIE TEMPORAL MAYOR
+*/
+
+var area="pnc"
+var borde = ee.Geometry.Polygon([-79.4077000, -2.7145,-79.397000, -2.959000, -79.124000, -2.959000, -79.124000,-2.728435, -79.397000, -2.728435]);
+
+var s1 = ee.ImageCollection('COPERNICUS/S1_GRD')
+        .filterDate('2019-03-01', '2020-03-01')
+        .filter(ee.Filter.eq('resolution_meters',10))
+        .filterMetadata('transmitterReceiverPolarisation', 'equals', ['VV', 'VH'])
+        .filterBounds(borde)
+        .map(function(image){return image.clip(borde)});
+print(s1);
+Map.setCenter(-79.2633, -2.8515, 12);        
+var vv= s1.select("VV").mean();
+var vh= s1.select("VH").mean();
+var dif = vv.subtract(vh).rename("VV-VH");
+var coc = vv.divide(vh).rename("VV/VH");
+var pol = vh.select('VH').subtract(vv.select('VV'))
+               .divide(vh.select('VH').add(vv.select('VV')));
+               
+var s1_rgb=ee.Image.cat([vv.toFloat(),vh.toFloat(),dif,coc,pol.rename("pol_index")]);
+print(s1_rgb);
+//Map.addLayer(vv, {min: -28, max: 5}, 'PNC VV', true);
+//Map.addLayer(vh, {min: -28, max: 5}, 'PNC VH', true); 
+Map.addLayer(dif, {min: 2, max: 14}, 'PNC DIF', true); 
+Map.addLayer(s1_rgb, {bands: ['VV', 'VH', 'VV-VH']}, 'S1 Composed', true);
+
+var r1=f.st_exportar_archivo(ee.Image.cat([s1_rgb.toFloat()]), area+"_s1_2020","DESCARGAS_EARTH_ENGINE", borde,10);
+
