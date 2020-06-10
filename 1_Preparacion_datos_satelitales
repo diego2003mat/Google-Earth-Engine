@@ -1,0 +1,279 @@
+///////###################################################################
+//Programado: Diego Pacheco Prado (diepacpr@upv.es,dpacheco@uazuay.edu.ec)
+//VERSIÓN: 8/octubre/2019
+///////###################################################################
+var f= require('users/dpacheco/modulos:funciones_globales.js');
+var area="cuenca"
+var fecha_imagen="2020-02-10"
+var fecha_final= f.st_nueva_fecha(fecha_imagen,2)
+var r1="";
+var carpeta_salida="DESCARGAS_EARTH_ENGINE/"+area+"_11feb2020";
+Map.clear();
+
+//CUENCA
+var borde = ee.Geometry.Polygon([-79.672991, -2.495954, -79.672991, -3.174104 , -78.848047, -3.174104, -78.848047,-2.495954,-79.672991,-2.495954]);
+
+Map.setCenter(-79.154770, -2.779750, 10); //pnc
+Map.addLayer(borde, {color: 'FF0000'}, "Borde/Limite", false);
+///////######################se###################################
+//1. Sentinel-2 MSI: MultiSpectral Instrument, Level-1C
+//https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2
+var S2 = ee.ImageCollection('COPERNICUS/S2_SR')
+.filterDate(fecha_imagen, fecha_final)
+.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 100))
+.filterBounds(borde)
+.map(function(image){return image.clip(borde)});
+
+// Function to calculate and add an NDVI band
+var addNDVI = function(image) {
+return image.addBands(image.normalizedDifference(['B8', 'B4']).rename('NDVI'));
+};
+
+//EVI = G*(B8A-B04)/(B8A + C1B04 - C2B02 +1)
+var addEVI = function(image) {
+var evi = image.expression(
+    '2.5 * (NIR - RED) / ((NIR + 6*RED - 7.5*BLUE) + 1)', {
+      'NIR': image.select('B8'),
+      'RED': image.select('B4'),
+      'BLUE': image.select('B2')
+});
+return image.addBands(evi.rename('EVI'));
+};
+
+// Function to calculate and add SIPI
+var addSIPI = function(image) {
+  var sipi = image.expression(
+    '(B08 - B01) / (B08 - B04)', {
+      'B08': image.select('B8'),
+      'B01': image.select('B1'),
+      'B04': image.select('B4')
+});
+  return image.addBands(sipi.rename('SIPI'));
+};
+
+// Function to calculate and add an NDWI Normalized difference water index 1 band
+var addNDWI = function(image) {
+return image.addBands(image.normalizedDifference(['B3', 'B8']).rename('NDWI'));
+};
+
+var addNDII = function(image) {
+return image.addBands(image.normalizedDifference(['B8', 'B11']).rename('NDII'));
+};
+
+// Function to calculate and add an GI Greeenness Index
+var addMSI = function(image) {
+var msi = image.select('B11').divide(image.select('B8'));
+return image.addBands(msi.rename('MSI'));
+};
+
+//EVI2
+var addEVI2 = function(image) {
+var evi2 = image.expression(
+    '2.4 * (NIR - RED) / ((NIR + RED + 1))', {
+      'NIR': image.select('B8'),
+      'RED': image.select('B4')
+});
+return image.addBands(evi2.rename('EVI2'));
+};
+
+var addARI1 = function(image) {
+var ari1 = image.expression(
+    '(1/B03)-(1/B05)', {
+      'B03': image.select('B3'),
+      'B05': image.select('B5')
+});
+return image.addBands(ari1.rename('ARI1'));
+};
+
+// Function to calculate and add an GI Greeenness Index
+var addGI = function(image) {
+var green = image.select('B3');
+var red = image.select('B4');
+var gi = green.divide(red);
+return image.addBands(gi.rename('GI'));
+};
+
+var addNDVIre = function(image) {
+return image.addBands(image.normalizedDifference(['B8', 'B5']).rename('NDVIre'));
+};
+
+// Function to calculate and add an WBI Water Body Index band
+var addWBI = function(image) {
+return image.addBands(image.normalizedDifference(['B2', 'B4']).rename('WBI'));
+};
+
+var addbanda = function(image,nombre) {
+var  b=image;
+return image.addBands(b.rename(nombre));
+};
+
+var S2 = S2.map(addNDVI);
+var S2 = S2.map(addEVI);
+var S2 = S2.map(addSIPI);
+var S2 = S2.map(addNDWI);
+var S2 = S2.map(addNDII);
+var S2 = S2.map(addMSI);
+var S2 = S2.map(addEVI2);
+var S2 = S2.map(addARI1);
+var S2 = S2.map(addGI);
+var S2 = S2.map(addNDVIre);
+var S2 = S2.map(addWBI);
+
+var S2m=S2.mosaic(); //unir los tiles en una sola banda
+
+/*https://gee.stac.cloud/594Yk2M8Pvtxarw1r82eLtKNCLLTP?t=bands
+AOT	Aerosol Optical Thickness		10	0.001	
+WVP	Water Vapor Pressure. The height the water would occupy if the vapor 
+were condensed into liquid and spread evenly across the column.		10	0.001	
+SCL	Scene Classification Map (The "No Data" value of 0 is masked out)		20	
+TCI_R	True Color Image, Red channel		10		
+TCI_G	True Color Image, Green channel		10		
+TCI_B	True Color Image, Blue channel		10	
+*/
+//eliminar bandas innecesarias
+//En función de análisis con python y clasificación basada en objetos 
+//se define que las siguientes bandas de Sentinel 2 son las más importantes
+var S2m= S2m.select(['B1','AOT','WVP','EVI','SIPI','MSI','ARI1','GI','NDVIre','WBI']);
+
+var S2m_rgb= S2.mosaic().select(['TCI_R','TCI_G','TCI_B'])
+var vizParams = {
+  bands: ['TCI_R', 'TCI_G', 'TCI_B']
+};
+
+Map.addLayer(S2m_rgb, vizParams, 'True RGB S2');
+print(f.st_exportar_tabla_kml(S2m,carpeta_salida,"s2m_"+fecha_imagen));
+
+Map.addLayer(S2.select('NDVI').mean(), {bands: ['NDVI'], min: -1, max: 1}, 'S2-NDVI', false);
+Map.addLayer(S2.select('EVI').mean(), {bands: ['EVI'], min: -400, max: 400}, 'EVI', false);
+
+///////#########################################################
+//2. Otener índices de S1
+//Hird, Jennifer N., et al. “Google Earth Engine, Open-Access Satellite Data, and Machine Learning in Support of Large-Area Probabilisticwetland Mapping.” Remote Sensing, vol. 9, no. 12, 2017, doi:10.3390/rs9121315.
+var finicio=f.st_nueva_fecha(fecha_imagen,-5);
+var ffin=f.st_nueva_fecha(fecha_imagen,5);
+print("S1 Inicio:" + finicio + " S1 Fin: " + ffin);
+var imgVH = ee.ImageCollection('COPERNICUS/S1_GRD')
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation','VH'))
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        .filter(ee.Filter.eq('orbitProperties_pass', 'ASCENDING'))
+        .filterDate(finicio, ffin)
+        .select('VH')
+        .filterBounds(borde)
+        .map(function(image){return image.clip(borde)});
+
+var imgVV = ee.ImageCollection('COPERNICUS/S1_GRD')
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation','VV'))
+        .filter(ee.Filter.eq('orbitProperties_pass', 'ASCENDING'))
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        .filterDate(finicio, ffin)
+        .select('VV')
+        .filterBounds(borde)
+        .map(function(image){return image.clip(borde)});
+
+//print(f.st_exportar_tabla_kml(imgVH,carpeta_salida,"S1_vh_"+fecha_imagen));
+//print(f.st_exportar_tabla_kml(imgVV,carpeta_salida,"S1_vv_"+fecha_imagen));
+
+var s1_vh = imgVH.mean().rename('s1_VH');
+var s1_vv = imgVV.mean().rename('s1_VV');
+var s1_pol = s1_vh.select('s1_VH').subtract(s1_vv.select('s1_VV'))
+               .divide(s1_vh.select('s1_VH').add(s1_vv.select('s1_VV')));
+var s1_pol=s1_pol.rename('s1_pol');
+
+//var S1 = ee.Image.cat([s1_vh, s1_vv,s1_pol]);
+var S1 = ee.Image.cat([s1_vh, s1_pol]); //bandas seleccionadas en python
+var datamask = S1.select('s1_pol');
+var mask = datamask.gte(0.09).and(datamask.lte(0.3102));
+var maskedComposite = S1.updateMask(mask);
+Map.addLayer(maskedComposite, {bands: ['s1_VH', 's1_pol'], max: 0.3}, 'S1 Composed VH-VV-Pol', false);
+
+///////#########################################################
+//3. SRTM Digital Elevation Data 30m
+//https://developers.google.com/earth-engine/datasets/catalog/USGS_SRTMGL1_003
+var dataset = ee.Image('USGS/SRTMGL1_003').clip(borde);
+var elevation = dataset.select('elevation');
+//r1=f.st_exportar_archivo(elevation, "elevation"+fecha_imagen,carpeta_salida, borde,10);
+//print(f.st_exportar_tabla_kml(elevation,carpeta_salida,"SRTM"));
+
+var elevation = elevation.resample('bilinear').reproject('EPSG:4326', null, 10);
+var slope = ee.Terrain.slope(elevation);
+Map.addLayer(slope, {min: 0, max: 60}, 'Slope derivated from elevation', false);
+Map.addLayer(elevation, {min: 3500, max: 4500}, 'Elevation SRTMGL1_00', false);
+
+///////#########################################################
+//4. Obtener datos de temperatura
+//MOD11A2.006 Terra Land Surface Temperature and Emissivity 8-Day Global 1km
+
+var temp = ee.ImageCollection('MODIS/006/MOD11A2')
+                  .filter(ee.Filter.date("2020-01-01", "2020-02-13"))
+                    .map(function(image){return image.clip(borde)});
+  
+//print(f.st_exportar_tabla_kml(temp,carpeta_salida,"MOD11A2_006Temperature"));
+print(temp);
+
+var landSurfaceTemperature = temp.select('LST_Day_1km');
+var temp_promedio= landSurfaceTemperature.mean();
+//temp_promedio = temp_promedio.resample('bicubic').reproject('EPSG:32717', null, 10);
+
+var landSurfaceTemperatureVis = {
+  min: 14000.0,
+  max: 16000.0,
+  palette: [
+    '040274', '040281', '0502a3', '0502b8', '0502ce', '0502e6',
+    '0602ff', '235cb1', '307ef3', '269db1', '30c8e2', '32d3ef',
+    '3be285', '3ff38f', '86e26f', '3ae237', 'b5e22e', 'd6e21f',
+    'fff705', 'ffd611', 'ffb613', 'ff8b13', 'ff6e08', 'ff500d',
+    'ff0000', 'de0101', 'c21301', 'a71001', '911003'
+  ],
+};
+//Map.addLayer(
+//    temp_promedio, landSurfaceTemperatureVis,'MOD11A2_006 Land Surface Temperature', false);
+    
+///////#########################################################
+//5. Obtener datos de TPI
+//#Global ALOS Landforms
+//https://developers.google.com/earth-engine/datasets/catalog/CSP_ERGo_1_0_Global_ALOS_landforms
+var dataset = ee.Image('CSP/ERGo/1_0/Global/ALOS_landforms').clip(borde);
+var landforms = dataset.select('constant').rename("landform");
+var landforms = landforms.resample('bilinear').reproject('EPSG:4326', null, 10);
+          
+var landformsVis = {
+  min: 11.0,
+  max: 42.0,
+  palette: [
+    '141414', '383838', '808080', 'EBEB8F', 'F7D311', 'AA0000', 'D89382',
+    'DDC9C9', 'DCCDCE', '1C6330', '68AA63', 'B5C98E', 'E1F0E5', 'a975ba',
+    '6f198c'
+  ],
+};
+Map.addLayer(landforms, landformsVis, 'Landforms ALOS', false);
+
+//PROBA-V C1 Top Of Canopy Daily Synthesis 100m
+//https://developers.google.com/earth-engine/datasets/catalog/VITO_PROBAV_C1_S1_TOC_100M
+var dataset = ee.ImageCollection('VITO/PROBAV/C1/S1_TOC_100M')
+                  .filter(ee.Filter.date('2019-01-16', '2020-01-17'))
+.filterBounds(borde)
+.map(function(image){return image.clip(borde)})       
+
+//print(f.st_exportar_tabla_kml(dataset,carpeta_salida,"PROBA_V_C1_"+fecha_imagen));
+
+var red_proba_v=dataset.first().select("RED").resample('bilinear').reproject('EPSG:4326', null, 10).rename("red_proba_v").divide(2000);
+var nir_proba_v=dataset.first().select("NIR").resample('bilinear').reproject('EPSG:4326', null, 10).rename("nir_proba_v").divide(2000);
+var blue_proba_v=dataset.first().select("BLUE").resample('bilinear').reproject('EPSG:4326', null, 10).rename("blue_proba_v").divide(2000);
+var swir_proba_v=dataset.first().select("SWIR").resample('bilinear').reproject('EPSG:4326', null, 10).rename("swir_proba_v").divide(2000);
+var ndvi_proba_v=dataset.first().select("NDVI").resample('bilinear').reproject('EPSG:4326', null, 10).rename("ndvi_proba_v").subtract(20).divide(250);
+
+var SRTM = ee.Image.cat([elevation, slope,landforms]); //,temp_promedio
+//var proba = ee.Image.cat([red_proba_v,nir_proba_v,blue_proba_v,swir_proba_v,ndvi_proba_v]);
+
+//Metricas de textura
+var h2007 = height_2007.clip(borde).rename('height2007');
+//h2007 = h2007.resample('bilinear').reproject('EPSG:4326', null, 10);
+Map.addLayer(h2007, {min: 0, max: 60}, 'Vegetation height 2007', false);
+
+//7.unir los raster
+var CI = ee.Image.cat([S2m.toFloat(),S1.toFloat(),SRTM.toFloat(),h2007.toFloat()]);//,proba.toFloat()]);
+
+//Guardar resultado en google drive
+var r1=f.st_exportar_archivo(CI, area+"_"+fecha_imagen,carpeta_salida, borde,10);
+r1=f.st_exportar_archivo(ee.Image.cat([S2m_rgb.toFloat()]), area+"_rgb_"+fecha_imagen,"DESCARGAS_EARTH_ENGINE", borde,10);
+//r1=f.st_exportar_tabla_kml(CI,carpeta_salida,area+"_"+fecha_imagen);
