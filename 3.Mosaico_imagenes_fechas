@@ -1,6 +1,7 @@
 //Creación de un datacollection a partir de un listado de fechas y aplicado una máscara a las nubes
 //Aplicación al cantón Cuenca, Ecuador por la gran cantidad de nubes presente en la zona la mayor parte del año
-//Modificado por Diego Pacheco (dpacheco@uazuay.edu.ec)
+//Programado por Diego Pacheco (dpacheco@uazuay.edu.ec)
+//Basado en el ejemplo "Cómo generar imágenes satélite sin nubes" http://www.gisandbeers.com/generar-imagenes-satelite-sin-nubes/
 //Fecha de publicación: 31/8/2020
 
 var f= require('users/dpacheco/modulos:funciones_globales.js');
