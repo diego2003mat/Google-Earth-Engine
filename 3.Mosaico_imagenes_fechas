@@ -2,6 +2,8 @@
 //Aplicación al cantón Cuenca, Ecuador por la gran cantidad de nubes presente en la zona la mayor parte del año
 //Programado por Diego Pacheco (dpacheco@uazuay.edu.ec)
 //Basado en el ejemplo "Cómo generar imágenes satélite sin nubes" http://www.gisandbeers.com/generar-imagenes-satelite-sin-nubes/
+//Proyecto: Caracterización de unidades forestales a partir de datos espectrales, espaciales y de relieve a distintas escalas. Aplicación a los bosques andinos del cantón Cuenca (Ecuador). Fase 2
+//IERSE - Universidad del Azuay (ierse.uazuay.edu.ec)
 //Fecha de publicación: 31/8/2020
 
 var f= require('users/dpacheco/modulos:funciones_globales.js');
