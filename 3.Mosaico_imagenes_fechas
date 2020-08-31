@@ -1,0 +1,58 @@
+//Creación de un datacollection a partir de un listado de fechas y aplicado una máscara a las nubes
+//Aplicación al cantón Cuenca, Ecuador por la gran cantidad de nubes presente en la zona la mayor parte del año
+//Modificado por Diego Pacheco (dpacheco@uazuay.edu.ec)
+//Fecha de publicación: 31/8/2020
+
+var f= require('users/dpacheco/modulos:funciones_globales.js');
+var finicio=null;
+var ffinal=null;
+var r_union=null;
+var S2=null;
+
+var borde = ee.Geometry.Polygon([-79.672991, -2.495954, -79.672991, -3.174104 , -78.848047, -3.174104, -78.848047,-2.495954,-79.672991,-2.495954]);
+
+//Repetimos el proceso con Sentinel 2 acediendo a la banda QA60
+function MascaraNubesS(image) {
+  var qa = image.select('QA60');
+
+//Excluimos los pixel identificados como nubes y cirros de la imagen
+  var RecorteNubesMascaraS = 1 << 10;
+  var RecorteCirrosMascaraS = 1 << 11;
+  var MascaraS = qa.bitwiseAnd(RecorteNubesMascaraS).eq(0)
+      .and(qa.bitwiseAnd(RecorteCirrosMascaraS).eq(0));
+  return image.updateMask(MascaraS);}
+  
+//Listado de fechas disponibles para el cantón Cuenca (Ecuador)  
+// "2019-5-17","2019-08-10","2019-12-13","2020-01-07","2020-02-06","2020-02-11","2020-02-11","2020-03-22","2020-04-21","2020-08-04"  
+//"2020-02-06","2020-02-11","2020-03-22","2020-04-21","2020-07-25","2020-08-04","2020-08-24"
+
+//Creo un array con las fechas con las que quiero trabajar
+var a = ["2020-07-25","2020-08-04"];
+a.forEach(function(entry) {
+    finicio=f.st_nueva_fecha(entry,-2);
+    ffinal=f.st_nueva_fecha(entry,2);
+    S2 = ee.ImageCollection('COPERNICUS/S2_SR')
+    .filterDate(finicio, ffinal)
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 100))
+    .filterBounds(borde)
+    .map(MascaraNubesS)
+    .map(function(image){return image.clip(borde)});
+
+    if (r_union===null)
+    {r_union=S2}
+    else
+    {r_union = r_union.merge(S2)}
+});
+S2=r_union;
+
+//Presento un listado de los tiles/imágenes usados
+print(S2);
+
+//Genero un mosaico de las imagenes y añado al mapa
+var S2m_rgb= S2.mosaic().select(['TCI_R','TCI_G','TCI_B'])
+var vizParams = {
+  bands: ['TCI_R', 'TCI_G', 'TCI_B']
+};
+
+Map.addLayer(S2m_rgb, vizParams, 'True RGB S2 (mosaic)');
+Map.centerObject(borde, 10);
