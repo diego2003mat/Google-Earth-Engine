@@ -1,0 +1,24 @@
+##Script para aplicar zonal statistics as table por cada banda del raster
+import arcpy, os
+from arcpy.sa import *
+# Check out the ArcGIS Spatial Analyst extension license
+anio="2021"
+pol="VV"
+path_proc="C:/Users/DiegoP/Documents/ML_Python/2021-SAR_Bosques_nativos/4.Tablas/"
+shp=r"C:/Users/DiegoP/Documents/ML_Python/2021-SAR_Bosques_nativos/1.Datos/bosques/bosques_cuenca_lulc_v2.shp"
+arcpy.CheckOutExtension("Spatial")
+S1= r'C:\Users\DiegoP\Documents\ML_Python\2021-SAR_Bosques_nativos\GEE_SAR_Cuenca\raster_'+pol+'_'+anio+'_mensual_generado2021_9_2.tif'
+print(S1)
+desc = arcpy.Describe(S1)
+bands = desc.bandCount
+print(bands)
+for band in desc.children:
+    bandName = band.name
+    #append each band to the in_rasters list
+    path_banda=os.path.join(S1, bandName)
+    banda = Raster(path_banda)
+    #print(path_banda)
+    salida=path_proc+anio+"_"+pol+"_"+bandName+".dbf"
+    print(salida)
+    outZSaT = ZonalStatisticsAsTable(shp, "id", banda,salida, "NODATA", "ALL")
+	
