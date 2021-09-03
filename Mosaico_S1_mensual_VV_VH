@@ -1,0 +1,59 @@
+//Construcción de mosaicos con las medias mensuales de S1A y S1B 
+//Diego Pacheco (dpacheco@uazuay.edu.ec)
+//15 de septiembre de 2021
+var f= require('users/dpacheco/modulos:funciones_globales.js');
+//var anio = [2018,2019,2020,2021];
+var anio = [2021];
+var i=0;
+var inicio="";
+var fin="";
+var s1="";
+var mosaic="";
+var s1_media="";
+var r_union=null;
+var vv= "";
+var vh= "";
+var vv_union= null;
+var vh_union= null;
+anio.forEach(function(entry) {
+  for (i = 1; i <= 8; i++) {
+    inicio=entry+"-"+i + "-01";
+    if ((i+1)>12)
+    {fin=(entry+1)+"-01-01";}
+    else
+    {fin=entry+"-"+(i+1) + "-01"};
+    print(inicio + " " + fin);
+    //s1 dataset
+    s1 = ee.ImageCollection('COPERNICUS/S1_GRD')
+        .filterDate(inicio, fin)
+        .filter(ee.Filter.eq('resolution_meters',10))
+        .filterMetadata('transmitterReceiverPolarisation', 'equals', ['VV', 'VH'])
+        .filterBounds(borde)
+        .map(function(image){return image.clip(borde)});
+    print(s1);
+    s1_media=s1.mean();
+    vv= s1_media.select("VV").rename("VV"+entry+"-"+i);
+    vh= s1_media.select("VH").rename("VH"+entry+"-"+i);
+    //mosaic=s1.mosaic();
+    Map.addLayer(s1_media, s1_vis, 'S1 ' + inicio + " " + fin, false);
+    //print(s1_media);
+    s1="";
+    //uno cada uno de las bandas S1 en una colección
+    if (vv_union===null)
+    {vv_union=vv;}
+    else
+    {vv_union = vv_union.addBands(vv);}
+    
+    if (vh_union===null)
+    {vh_union=vv;}
+    else
+    {vh_union = vh_union.addBands(vh);}
+  }
+});
+print(vv_union);
+print(vh_union);
+
+var r1=f.st_exportar_archivo(vv_union, "VV_"+anio+"_mensual","GEE_SAR_Cuenca", borde,10);
+var r2=f.st_exportar_archivo(vh_union, "VH_"+anio+"_mensual","GEE_SAR_Cuenca", borde,10);
+print(r1);
+print(r2);
